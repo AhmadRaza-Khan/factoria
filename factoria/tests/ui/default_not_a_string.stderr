@@ -1,0 +1,5 @@
+error: expected string literal
+ --> tests/ui/default_not_a_string.rs:3:25
+  |
+3 |     #[factory(default = 0)]
+  |                         ^

@@ -1,0 +1,5 @@
+error: #[derive(Factory)] does not support generic structs yet
+ --> tests/ui/generic_struct.rs:2:15
+  |
+2 | struct Wrapper<T> {
+  |               ^^^

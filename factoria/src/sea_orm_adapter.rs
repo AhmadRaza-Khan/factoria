@@ -20,7 +20,8 @@ where
         self.build().insert(db).await
     }
 
-    /// Insert `count` rows (one INSERT each, so ids/defaults come back).
+    /// Insert `count` rows (one INSERT each, so ids/defaults come back),
+    /// stopping at the first error.
     pub async fn create_many<C: ConnectionTrait>(
         &self,
         db: &C,

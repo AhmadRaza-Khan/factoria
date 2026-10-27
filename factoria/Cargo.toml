@@ -46,6 +46,14 @@ required-features = ["sqlx"]
 name = "derive"
 required-features = ["derive"]
 
+[[example]]
+name = "seaorm_basic"
+required-features = ["sea-orm"]
+
+[[example]]
+name = "sqlx_basic"
+required-features = ["sqlx"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

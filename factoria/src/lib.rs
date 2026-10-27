@@ -1,5 +1,62 @@
 //! Async test data factories for Rust.
+//!
+//! Define a factory once, then create realistic rows in one line:
+//!
+//! ```ignore
+//! let user = UserFactory::new().create(&db).await?;
+//! let users = UserFactory::new().count(10).create_many(&db).await?;
+//! let admin = UserFactory::new().with(|u| u.role = Set("admin".into())).create(&db).await?;
+//! ```
+//!
+//! # Defining a factory
+//!
+//! Implement [`Factory`] for a zero-sized struct. [`Factory::definition`]
+//! returns a fresh model with default values; `seq` is a counter unique to
+//! that factory, so unique columns never collide.
+//!
+//! ```
+//! use factoria::Factory;
+//!
+//! struct User {
+//!     email: String,
+//!     admin: bool,
+//! }
+//!
+//! struct UserFactory;
+//!
+//! impl Factory for UserFactory {
+//!     type Model = User;
+//!
+//!     fn definition(seq: u64) -> User {
+//!         User { email: format!("user{seq}@test.dev"), admin: false }
+//!     }
+//! }
+//!
+//! let admin = UserFactory::new().with(|u| u.admin = true).build();
+//! let users = UserFactory::new().count(3).build_many();
+//! assert!(admin.admin);
+//! assert_eq!(users.len(), 3);
+//! ```
+//!
+//! # Saving to a database
+//!
+//! The [`Builder`] gains methods for each enabled feature:
+//!
+//! | Feature   | Adds                                                  |
+//! |-----------|-------------------------------------------------------|
+//! | `sea-orm` | `create()`, `create_many()` for SeaORM `ActiveModel`s |
+//! | `sqlx`    | `SqlxInsert`, `insert()`, `insert_many()`             |
+//! | `derive`  | `#[derive(Factory)]` with random data from `fake`     |
+//!
+//! With `sea-orm`, set the factory's `Model` to the entity's `ActiveModel`;
+//! `create()` returns the saved entity `Model`. It takes any
+//! `ConnectionTrait`, so a `DatabaseTransaction` works for rolling back
+//! after each test.
+//!
+//! With `sqlx`, implement `SqlxInsert` for your model once to describe
+//! the `INSERT`; `insert()` then saves built models.
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![warn(missing_docs)]
 
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -14,6 +71,29 @@ mod sqlx_adapter;
 #[cfg(feature = "sqlx")]
 pub use sqlx_adapter::SqlxInsert;
 
+/// Generates a `<Name>Factory` for a struct with named fields.
+///
+/// Fields marked `#[factory(default = "<expr>")]` use that expression,
+/// which may refer to `seq`. Every other field gets a random value, so its
+/// type must implement `fake::Dummy<fake::Faker>`.
+///
+/// ```
+/// use factoria::Factory;
+///
+/// #[derive(Factory)]
+/// struct User {
+///     #[factory(default = "0")]
+///     id: i64,
+///     #[factory(default = "format!(\"user{seq}@test.dev\")")]
+///     email: String,
+///     name: String, // random
+/// }
+///
+/// let user = UserFactory::new().with(|u| u.name = "Ahmad".into()).build();
+/// assert_eq!(user.name, "Ahmad");
+/// ```
+///
+/// Not supported yet: tuple structs, enums, generic structs.
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use factoria_derive::Factory;
@@ -22,12 +102,16 @@ pub use factoria_derive::Factory;
 #[doc(hidden)]
 pub use fake; // used by generated code
 
-/// Implement this for a zero-sized "XxxFactory" struct.
+/// Describes how to build a default model. Implement this for a zero-sized
+/// "XxxFactory" struct, then call [`Factory::new`] to get a [`Builder`].
 pub trait Factory: Sized + 'static {
     /// What the factory produces (a plain struct, or a SeaORM ActiveModel).
     type Model: Send + 'static;
 
     /// Default values. `seq` is unique per factory type, starting at 1.
+    ///
+    /// Counters are global and never reset, so don't assert on exact `seq`
+    /// values; use them only to make columns unique.
     fn definition(seq: u64) -> Self::Model;
 
     /// Start a builder: `UserFactory::new()`.
@@ -38,7 +122,27 @@ pub trait Factory: Sized + 'static {
 
 type Override<M> = Arc<dyn Fn(&mut M, u64) + Send + Sync>;
 
-/// Configures and produces models.
+/// Configures and produces models: overrides, count, then build or save.
+///
+/// Builders are cheap to clone, so a configured one can be stored as a
+/// preset ("state") and reused:
+///
+/// ```
+/// # use factoria::{Builder, Factory};
+/// # struct User { admin: bool }
+/// # struct UserFactory;
+/// # impl Factory for UserFactory {
+/// #     type Model = User;
+/// #     fn definition(_: u64) -> User { User { admin: false } }
+/// # }
+/// impl UserFactory {
+///     fn admin() -> Builder<Self> {
+///         Self::new().with(|u| u.admin = true)
+///     }
+/// }
+///
+/// assert!(UserFactory::admin().build().admin);
+/// ```
 pub struct Builder<F: Factory> {
     overrides: Vec<Override<F::Model>>,
     count: usize,
@@ -56,18 +160,22 @@ impl<F: Factory> Builder<F> {
     }
 
     /// Override fields: `.with(|u| u.name = "Ahmad".into())`
+    ///
+    /// Overrides run after [`Factory::definition`], in the order added.
+    /// The closure must be `'static`, so `move` in any values it uses.
     pub fn with(mut self, f: impl Fn(&mut F::Model) + Send + Sync + 'static) -> Self {
         self.overrides.push(Arc::new(move |m, _| f(m)));
         self
     }
 
-    /// Override with access to the sequence number.
+    /// Override with access to the sequence number:
+    /// `.with_seq(|u, seq| u.username = format!("player_{seq}"))`
     pub fn with_seq(mut self, f: impl Fn(&mut F::Model, u64) + Send + Sync + 'static) -> Self {
         self.overrides.push(Arc::new(f));
         self
     }
 
-    /// How many models build_many / create_many produce.
+    /// How many models the `*_many` methods produce. Defaults to 1.
     pub fn count(mut self, n: usize) -> Self {
         self.count = n;
         self
@@ -83,7 +191,7 @@ impl<F: Factory> Builder<F> {
         model
     }
 
-    /// Build `count` models in memory.
+    /// Build `count` models in memory, each with its own `seq`.
     pub fn build_many(&self) -> Vec<F::Model> {
         (0..self.count).map(|_| self.build()).collect()
     }
