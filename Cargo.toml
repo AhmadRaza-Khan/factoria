@@ -1,6 +1,11 @@
-[package]
-name = "factoria"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["factoria", "factoria-derive"]
+resolver = "2"
 
-[dependencies]
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.94"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/AhmadRaza-Khan/factoria"
+authors = ["Ahmad Raza Khan <ahmadrazakhanbwn@gmail.com>"]
