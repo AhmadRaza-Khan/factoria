@@ -1,6 +1,6 @@
 [package]
 name = "factoria"
-description = "Async test data factories for Rust (SeaORM, sqlx) - like factory_bot"
+description = "Async test data factories for Rust (SeaORM, sqlx)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,22 +11,40 @@ readme = "../README.md"
 keywords = ["factory", "testing", "fixtures", "seaorm", "sqlx"]
 categories = ["development-tools::testing", "database"]
 
-# Features "sqlx" and "derive" and their dependencies are added alongside
-# their adapters in steps 06-07.
 [features]
 default = []
 sea-orm = ["dep:sea-orm"]
+sqlx = ["dep:sqlx"]
+derive = ["dep:factoria-derive", "dep:fake"]
 
 [dependencies]
+factoria-derive = { version = "0.1.0", path = "../factoria-derive", optional = true }
+fake = { version = "5", optional = true }
 sea-orm = { version = "2", default-features = false, optional = true }
+sqlx = { version = "0.9", default-features = false, optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 sea-orm = { version = "2", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
+sqlx = { version = "0.9", features = ["sqlite", "runtime-tokio"] }
+fake = { version = "5", features = ["derive"] }
+trybuild = "1"
 
 [[test]]
 name = "sea_orm"
 required-features = ["sea-orm"]
+
+[[test]]
+name = "patterns"
+required-features = ["sea-orm"]
+
+[[test]]
+name = "sqlx"
+required-features = ["sqlx"]
+
+[[test]]
+name = "derive"
+required-features = ["derive"]
 
 [package.metadata.docs.rs]
 all-features = true

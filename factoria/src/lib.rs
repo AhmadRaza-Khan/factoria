@@ -9,6 +9,19 @@ use std::sync::{Arc, Mutex, OnceLock};
 #[cfg(feature = "sea-orm")]
 mod sea_orm_adapter;
 
+#[cfg(feature = "sqlx")]
+mod sqlx_adapter;
+#[cfg(feature = "sqlx")]
+pub use sqlx_adapter::SqlxInsert;
+
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+pub use factoria_derive::Factory;
+
+#[cfg(feature = "derive")]
+#[doc(hidden)]
+pub use fake; // used by generated code
+
 /// Implement this for a zero-sized "XxxFactory" struct.
 pub trait Factory: Sized + 'static {
     /// What the factory produces (a plain struct, or a SeaORM ActiveModel).
