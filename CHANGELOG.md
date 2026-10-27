@@ -9,7 +9,9 @@ same version.
 
 ## [Unreleased]
 
-First release, planned as 0.1.0.
+## [0.1.0] - 2026-10-27
+
+First release.
 
 ### Added
 
@@ -23,4 +25,5 @@ First release, planned as 0.1.0.
   with random values from `fake` 5 and `#[factory(default = "...")]`.
 - Minimum supported Rust version: 1.94.
 
-[Unreleased]: https://github.com/AhmadRaza-Khan/factoria/commits/master
+[Unreleased]: https://github.com/AhmadRaza-Khan/factoria/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/AhmadRaza-Khan/factoria/releases/tag/v0.1.0
